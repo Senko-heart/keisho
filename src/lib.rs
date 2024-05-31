@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![no_std]
 #![feature(marker_trait_attr)]
 #![feature(freeze)]
 
@@ -8,6 +9,7 @@ use core::fmt::Debug;
 use core::marker::Freeze;
 use core::marker::PhantomData;
 use core::mem;
+use core::mem::MaybeUninit;
 use core::ops::Deref;
 use core::ops::DerefMut;
 use core::ptr::NonNull;
@@ -126,7 +128,7 @@ unsafe impl<V: Virtual + Deref<Target: VirtualDeref>> VirtualDeref for V {
 #[repr(C)]
 pub union Vt<VRoot: Virtual> {
     table: VRoot::VTable,
-    array: [fn(Void); 1 << 16],
+    array: [MaybeUninit<fn(Void)>; 1 << 16],
 }
 
 #[doc(hidden)]
