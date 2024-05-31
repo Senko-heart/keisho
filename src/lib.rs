@@ -124,9 +124,9 @@ unsafe impl<V: Virtual + Deref<Target: VirtualDeref>> VirtualDeref for V {
 }
 
 #[repr(C)]
-pub union Vt<VRoot: Virtual, const N: usize> {
+pub union Vt<VRoot: Virtual> {
     table: VRoot::VTable,
-    array: [fn(Void); N],
+    array: [fn(Void); 1 << 16],
 }
 
 #[doc(hidden)]
@@ -135,16 +135,14 @@ pub const fn vsize<V: VirtualDeref>() -> usize {
 }
 
 #[rustfmt::skip]
-impl<VRoot: Virtual<VTable = VList<VRoot, <Pointed<VRoot> as VirtualDeref>::VTable>> + Deref<Target: Virtual>, const N: usize> Vt<VRoot, N> {
-    const _VALID: () = assert!(vsize::<VRoot>() == N, "invalid array constant");
-
+impl<VRoot: Virtual<VTable = VList<VRoot, <Pointed<VRoot> as VirtualDeref>::VTable>> + Deref<Target: Virtual>> Vt<VRoot> {
     pub const unsafe fn new(f: fn(NonNull<VRoot>) -> NonNull<VRoot::Dyn>) -> Self {
         Self { table: VList(f, <Pointed<VRoot> as Virtual>::TABLE) }
     }
 
     pub const unsafe fn r#override<V: Virtual>(mut self, f: fn(NonNull<VRoot>) -> NonNull<V::Dyn>) -> Self {
         unsafe {
-            let len = self.array.len();
+            let len = vsize::<VRoot>();
             let sub = vsize::<V>();
             self.array[len - sub] = core::mem::transmute(f);
         }
@@ -159,11 +157,11 @@ impl<VRoot: Virtual<VTable = VList<VRoot, <Pointed<VRoot> as VirtualDeref>::VTab
 #[macro_export]
 macro_rules! vt {
     () => {
-        unsafe { $crate::Vt::<Self, { $crate::vsize::<Self>() }>::new(|this| this) }.into_inner()
+        unsafe { $crate::Vt::<Self>::new(|this| this) }.into_inner()
     };
     (override: $($T:ty),+ $(,)?) => {
         {
-            let mut vt = unsafe { $crate::Vt::<Self, { $crate::vsize::<Self>() }>::new(|this| this) };
+            let mut vt = unsafe { $crate::Vt::<Self>::new(|this| this) };
             $(
                 vt = unsafe { vt.r#override::<$T>(|this| this) };
             )+
